@@ -62,10 +62,8 @@ Branding: O nome AdsGram remete a anúncios + Telegram. Podemos criar um logo si
 Figura: Tela de confirmação do Telegram Login Widget, exibida quando o usuário autoriza o uso da sua conta Telegram no aplicativo web. Após o usuário clicar em "Log in", o Telegram mostra uma janela de confirmação como esta, garantindo que o usuário dê permissão para compartilhar seu nome de usuário, nome e foto de perfil com o AdsGram. Esse processo simplifica o cadastro, aproveitando a identidade já verificada do Telegram.
 Tecnologias e Arquitetura da Solução
 Frontend: Será desenvolvido em Next.js 13+ com TypeScript. Usaremos o sistema de páginas (pages/) do Next para facilitar a separação de rotas (devido à necessidade de ter páginas específicas como index, indexlocal, admin, etc., e integração fácil com NextAuth). O uso de TypeScript garante maior segurança de tipos, evitando muitos erros comuns. A camada de estilo será construída com Tailwind CSS, permitindo rápida prototipação de um design responsivo e moderno. Adicionaremos também a biblioteca Framer Motion (framer-motion) para animações declarativas de alta qualidade (ex.: transições de modais, listas aparecendo, etc.). Para ícones e pequenos componentes de UI, podemos usar bibliotecas como Heroicons (já compatível com Tailwind) ou FontAwesome, ou importar SVGs conforme necessidade. Backend/API: Next.js permitirá implementar a API do backend via rotas API (pages/api/* ou novas app/api routes). Essas rotas serão usadas para operações como:
-Registrar visualização de anúncio (ex.: POST /api/ads/view).
-Registrar conclusão de tarefa (ex.: POST /api/tasks/submit).
-Solicitar saque (ex.: POST /api/withdraw).
-Ações de admin: aprovar tarefa, aprovar saque, criar anúncio/tarefa, etc. (ex.: POST /api/admin/approveTask, POST /api/admin/newAd etc.). Essas rotas terão verificação de autenticação admin (via NextAuth session) para segurança.
+Registrar visualização de anúncio, registrar conclusão de tarefa e solicitar saques são ações acionadas pela interface (o frontend realiza chamadas ao servidor). Não execute essas operações manualmente via curl/Postman — utilize os botões/formulários disponíveis na UI.
+As ações de administração (aprovar tarefas, marcar saques como pagos, criar/encerrar anúncios e tarefas) também são feitas pelo painel Admin e exigem autenticação apropriada (NextAuth session ou fluxo admin configurado).
 Banco de Dados: Optamos por um banco de dados relacional (SQL) para melhor estruturar as relações entre usuários, anúncios, tarefas, etc. Especificamente, utilizaremos o PostgreSQL serverless através do serviço Neon (integrado à Vercel). O Neon oferece um Postgres gerenciado com ótima performance e escalabilidade, no modelo serverless com autoscaling e inclusive suspensão automática quando não está em uso (economizando recursos)
 vercel.com
 . Além disso, possui um plano gratuito generoso que atende ao MVP e pode crescer conforme a demanda
@@ -306,7 +304,7 @@ pages/profile.tsx – Página de Perfil/Onboarding:
 Essa página (ou poderia ser um componente modal dentro index) coleta e exibe os dados do perfil do usuário.
 Formulário com campos: nickname (readonly or editable?), email, wallet, pix, location, categories (multi-select), task types (multi-select).
 Pode reusar some UI components for multi-select (like checkboxes).
-Botão Salvar que faz POST /api/profile para atualizar o usuário.
+Botão Salvar que atualiza o perfil do usuário (o frontend envia a atualização ao servidor — não execute chamadas manuais).
 Após salvar, pode navegar para "/" (dashboard).
 Se for usado como onboarding obrigatório, index.tsx pode redirect here until done. Mas se preferir modal, poderíamos integrar sem separate route. A route approach is straightforward though.
 Também a página Perfil serve para edição futura: usuário abre para alterar algo.
