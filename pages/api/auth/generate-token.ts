@@ -1,28 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { connectToDB } from '@/lib/mongoose'
-import Token from '@/models/Token'
 import { User } from '@/models/User'
-
-// Rate limit em memória (simples) por IP
-const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000 // 5 minutos
-const RATE_LIMIT_MAX = 5 // máx. 5 solicitações/5min por IP
-const ipHits = new Map<string, number[]>()
-
-function rateLimit(ip: string): boolean {
-  const now = Date.now()
-  const arr = ipHits.get(ip) || []
-  const recent = arr.filter((t) => now - t < RATE_LIMIT_WINDOW_MS)
-  recent.push(now)
-  ipHits.set(ip, recent)
-  return recent.length <= RATE_LIMIT_MAX
-}
 
 /**
  * POST /api/auth/generate-token
  * Gera um token de 6 dígitos para autenticação web
- * - Público (com rate limit por IP)
- * - Token expira em 5 minutos
- * - Em produção, o código é enviado via Bot API se possível (chat privado já iniciado)
+ * - Público
+ * - Token expira em 5 minutos (armazenado no próprio usuário)
+ * - O código é enviado via Bot API (requer chat iniciado). Não retornamos o código no response.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -30,12 +15,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Rate limit por IP
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown'
-    if (!rateLimit(String(ip))) {
-      return res.status(429).json({ error: 'Muitas solicitações. Tente novamente em alguns minutos.' })
-    }
-
     const { identifier } = (req.body || {}) as { identifier?: string }
     if (!identifier || typeof identifier !== 'string' || identifier.trim().length < 2) {
       return res.status(400).json({ error: 'Identifier inválido. Informe seu @usuario ou ID.' })
@@ -55,30 +34,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!userDoc) {
-      // Não geramos token para desconhecidos: o usuário deve primeiro iniciar o WebApp/bo t (cria o registro e mapeia username→chat_id)
+      // O usuário precisa ter aberto o WebApp ao menos uma vez para existir no banco
       return res.status(400).json({ error: 'Conta não encontrada. Abra o app pelo Telegram ao menos uma vez para vincular seu usuário.' })
     }
 
-    // Gerar código de 6 dígitos aleatório e garantir unicidade rapidamente
-    let code = Math.floor(100000 + Math.random() * 900000).toString()
-    // Em caso extremamente improvável, re-gerar uma vez
-    if (await Token.findOne({ code }).lean()) {
-      code = Math.floor(100000 + Math.random() * 900000).toString()
-    }
+    // Gerar código de 6 dígitos aleatório
+    const code = Math.floor(100000 + Math.random() * 900000).toString()
 
-    // Criar token no banco vinculado ao usuário e com auditoria
-    const token = await Token.create({
-      code,
-      userId: userDoc._id,
-      identifier: isNumericId ? raw : `@${normalizedUsername}`,
-      requestedIp: String(ip),
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutos
-      used: false,
-    })
+    // Gravar código e expiração no próprio usuário (token descartável)
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000)
+    await User.updateOne({ _id: userDoc._id }, { $set: { loginCode: code, loginCodeExpiresAt: expiresAt } })
 
     const masked = `${code.slice(0, 2)}****`
-    console.log('[LOG] /api/auth/generate-token SUCCESS', { maskedCode: masked, userId: String(userDoc._id), identifier: token.identifier, ip })
-    return respondWithSendAttempt(res, token.code, userDoc.telegramId)
+    console.log('[LOG] /api/auth/generate-token SUCCESS', { maskedCode: masked, userId: String(userDoc._id), identifier: isNumericId ? raw : `@${normalizedUsername}` })
+    return respondWithSendAttempt(res, code, userDoc.telegramId)
   } catch (error: any) {
     console.error('[ERROR] /api/auth/generate-token', error)
     return res.status(500).json({ error: error.message || 'Failed to generate token' })

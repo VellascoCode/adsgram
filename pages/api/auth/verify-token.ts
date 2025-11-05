@@ -1,15 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { connectToDB } from '@/lib/mongoose'
-import Token from '@/models/Token'
 import { User } from '@/models/User'
 import { setUserSessionCookie } from '@/lib/auth'
 
 /**
  * POST /api/auth/verify-token
  * Verifica token de 6 dígitos e cria sessão JWT
- * - Valida se token existe, não expirou e não foi usado
- * - Marca token como usado
- * - Usa userId vinculado ao token para criar sessão do usuário correto
+ * - Valida se existe um usuário com loginCode igual e não expirado
+ * - Limpa o loginCode após uso (token descartável)
+ * - Cria sessão para o usuário correto
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -25,42 +24,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await connectToDB()
 
-  // Buscar token no banco
-  const token = await Token.findOne({ code })
-
-    if (!token) {
-      console.log('[LOG] /api/auth/verify-token FAILED - Token not found', { code })
+    // Buscar usuário com esse loginCode válido
+    const user = await User.findOne({ loginCode: code, loginCodeExpiresAt: { $gt: new Date() } })
+    if (!user) {
+      console.log('[LOG] /api/auth/verify-token FAILED - Código inválido/expirado')
       return res.status(401).json({ error: 'Token inválido ou expirado' })
     }
 
-    // Verificar se token já foi usado
-    if (token.used) {
-      console.log('[LOG] /api/auth/verify-token FAILED - Token already used', { code })
-      return res.status(401).json({ error: 'Token já foi utilizado' })
-    }
-
-    // Verificar se token expirou
-    if (new Date() > token.expiresAt) {
-      console.log('[LOG] /api/auth/verify-token FAILED - Token expired', { code, expiresAt: token.expiresAt })
-      return res.status(401).json({ error: 'Token expirado' })
-    }
-
-    // Token precisa estar vinculado a um usuário
-    if (!token.userId) {
-      console.log('[LOG] /api/auth/verify-token FAILED - Token sem userId vinculado')
-      return res.status(401).json({ error: 'Token inválido para login' })
-    }
-
-    const user = await User.findById(token.userId)
-    if (!user) {
-      console.log('[LOG] /api/auth/verify-token FAILED - userId inexistente', { userId: String(token.userId) })
-      return res.status(401).json({ error: 'Usuário não encontrado' })
-    }
-
-    // Marcar token como usado
-    token.used = true
-    token.usedAt = new Date()
-    await token.save()
+    // Limpar token descartável
+    await User.updateOne({ _id: user._id }, { $set: { loginCode: null, loginCodeExpiresAt: null } })
 
     // Setar cookie httpOnly da sessão do usuário correto
     setUserSessionCookie(res, String(user._id))

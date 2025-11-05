@@ -19,6 +19,9 @@ const UserSchema = new Schema({
   referralCode: { type: String, unique: true, sparse: true, default: null },
   xpPoints: { type: Number, default: 0 },
   level: { type: Number, default: 1 },
+  // Token descartável de login (gerado e enviado via bot; apagado após uso)
+  loginCode: { type: String, default: null, index: true },
+  loginCodeExpiresAt: { type: Date, default: null, index: true },
 }, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } })
 
 export type UserDoc = {
@@ -41,6 +44,8 @@ export type UserDoc = {
   referralCode?: string | null
   xpPoints: number
   level: number
+  loginCode?: string | null
+  loginCodeExpiresAt?: Date | null
 }
 
 export const User = models.User || model('User', UserSchema)

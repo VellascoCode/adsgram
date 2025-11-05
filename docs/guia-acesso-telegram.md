@@ -142,14 +142,17 @@ O que já está pronto:
 - UI no `/` para digitar `@usuario ou ID` e solicitar token
 - Campos de 6 dígitos + botão “Entrar” que chama `POST /api/auth/verify-token`
 
-Backend (estado atual):
-- `POST /api/auth/generate-token` (público, com segurança):
+Backend (estado atual — simplificado e sem simulações):
+- `POST /api/auth/generate-token` (público):
   - Aceita `{ identifier: '@usuario' | 'id' }`
-  - Exige que o usuário já exista no banco (criado ao usar o WebApp do Telegram pela primeira vez)
-  - Gera token de 6 dígitos vinculado ao `userId`, com expiração curta e `used=false`, grava `identifier` e IP para auditoria
-  - Envia o token via **Bot API** usando o `chat_id` do usuário; NÃO retorna o código no JSON (nem em DEV) e NÃO loga o código em texto claro
-  - Se o envio falhar (ex.: usuário nunca iniciou o bot), responde 400 solicitando iniciar o bot primeiro
-- `POST /api/auth/verify-token` valida o token, verifica expiração/uso e cria a sessão para o usuário vinculado ao token (não há mais “guest”).
+  - Exige usuário já existente no banco (criado ao abrir o WebApp ao menos uma vez)
+  - Gera um código de 6 dígitos e grava no próprio registro do usuário: `loginCode` + `loginCodeExpiresAt` (5 minutos)
+  - Envia o código via **Bot API** para o `chat_id` do usuário; não retorna o código no JSON e não loga em texto claro
+  - Se o envio falhar (ex.: chat não iniciado), retorna 400 pedindo para iniciar o bot
+- `POST /api/auth/verify-token`:
+  - Procura um usuário com `loginCode` igual e `loginCodeExpiresAt` ainda válido
+  - Limpa os campos (`loginCode=null`, `loginCodeExpiresAt=null`) após uso
+  - Cria a sessão para esse usuário (cookie httpOnly)
 
 Validação do fluxo com token (produção):
 1. Solicite token na UI (deve responder 200 e avisar que foi enviado)

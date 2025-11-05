@@ -106,17 +106,15 @@ export default function Home() {
     setSendingToken(true)
     const t = toast.loading('Gerando token...')
     try {
-      // OBS: atualmente o endpoint exige admin. Implementaremos versão pública depois.
       const res = await fetch('/api/auth/generate-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: identifier.trim() }),
       })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({} as any))
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok || !data?.sent) {
         throw new Error(data?.error || 'Falha ao solicitar token')
       }
-      // Em produção: o bot envia o token ao usuário no Telegram
       setTokenRequested(true)
       toast.success('Token enviado para seu Telegram')
     } catch (e: any) {
@@ -219,7 +217,7 @@ export default function Home() {
                 </button>
               </div>
               <AnimatePresence>
-                {(tokenRequested || true) && (
+                {tokenRequested && (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}

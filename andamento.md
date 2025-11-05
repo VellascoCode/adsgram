@@ -898,31 +898,39 @@ O Next.js escolhe automaticamente uma porta livre (ex.: `http://localhost:3002`)
 
 ## 2025-11-04 (Sessão: segurança tokens + documentação)
 
- Implementado fluxo correto e seguro de tokens (sem simulação e sem expor código):
-  - `models/Token.ts`: adicionados campos `identifier`, `requestedIp`, `usedAt` (auditoria e vínculo).
-  - `pages/api/auth/generate-token.ts`:
-    - Vínculo obrigatório do token a um usuário existente (busca por `telegramId` numérico ou `@username`).
-    - Removida exposição do código no response e nos logs (logs usam `maskedCode`).
-    - Envio do token EXCLUSIVAMENTE via Bot API (é necessário ter iniciado o bot). Se falhar, retorna 400 sem vazar o código.
-    - Rate limit mantido por IP.
-  - `pages/api/auth/verify-token.ts`:
-    - Removido “guest”. Agora a sessão é criada para o `userId` vinculado ao token.
-    - Marca `usedAt` e mascara código nos logs.
+ Implementado fluxo correto e simples de tokens descartáveis por usuário (sem simulação, sem IP, sem vazar código):
+  - `models/User.ts`: adicionados campos `loginCode` e `loginCodeExpiresAt` (token descartável + expiração), ambos indexados.
+  - `pages/api/auth/generate-token.ts` (refactor):
+    - Localiza o usuário pelo `telegramId` numérico ou `@username`.
+    - Gera `loginCode` (6 dígitos) e `loginCodeExpiresAt` (+5 min) diretamente no User.
+    - Envia o código via Bot API para o `chat_id` do usuário (requer ter iniciado o bot).
+    - Não retorna o código no JSON e logs usam `maskedCode`.
+  - `pages/api/auth/verify-token.ts` (refactor):
+    - Valida via `User.loginCode` + validade; limpa após uso; cria sessão httpOnly para o usuário correto.
 
- Guia atualizado para refletir o comportamento real e seguro:
-  - `docs/guia-acesso-telegram.md` (Seção 7): exige usuário existente, não retorna código, orienta iniciar o bot se falhar.
+ Guia atualizado para refletir o comportamento:
+  - `docs/guia-acesso-telegram.md` (Seção 7): tokens por usuário (`loginCode`), sem retorno do código, iniciar bot se falhar envio.
 
  Quality gates desta sessão:
- - Build: PENDENTE rodar (alterações de código aplicadas)
- - Lint/Typecheck: PENDENTE
- - Testes: PENDENTE
+ - Build: PASS (Next.js build ok)
+ - Lint/Typecheck: PASS (sem erros novos)
+ - Testes manuais: PENDENTE (aguarda bot/token real para testar ponta-a-ponta)
 
 Quality gates desta sessão:
- Persistir `username → chat_id` automaticamente na primeira abertura do WebApp (já ocorre via `/api/auth/telegram`; garantir consistência).
- Rodar build e teste rápido de ponta-a-ponta do fluxo de token (gerar → receber no Telegram → verificar) e registrar resultados.
- Configurar envs de produção na Vercel e concluir criação/configuração do bot no BotFather.
+ Persistir `username → chat_id` automaticamente (já feito via `/api/auth/telegram`; validar produção).
+ Teste E2E com bot real: gerar → receber → verificar; registrar no andamento o resultado.
+ Garantir envs corretas no Vercel e BotFather configurado.
 
 Próximas ações imediatas (confirmadas):
 - Implementar associação correta do usuário em `/api/auth/verify-token` usando o `identifier` do token.
 - Persistir `username → chat_id` na primeira abertura do WebApp para permitir envio do token por `@username` no futuro.
 - Configurar envs de produção na Vercel e concluir criação/configuração do bot no BotFather.
+
+## 2025-11-05 (Fix: Vercel build config)
+
+- **Problema**: Vercel build falhou com "No Output Directory named 'public' found" após compilação bem-sucedida do Next.js.
+- **Causa**: Vercel esperava auto-detectar configuração do Next.js, mas falhou.
+- **Solução**: Criado `vercel.json` explicitamente configurando:
+  - `buildCommand: "npm run build"`
+  - `outputDirectory: ".next"`
+- Quality gates: Build local passou; aguardando redeploy no Vercel para validar.
