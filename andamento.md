@@ -754,6 +754,21 @@ Correções Críticas e Logs (hoje - sessão posterior)
      - ✅ `pages/index.tsx` — UI/fluxo completo de login com Telegram/Token/DeepLink
    - Status: ✅ **ENTREGUE (UI pronta)** — Backend público do generate-token pendente de ajuste
 
+19. **🔓 AUTH — generate-token liberado ao público com rate limit e envio via Bot API (quando possível)**
+   - Endpoint: `POST /api/auth/generate-token`
+   - Mudanças:
+     - Removida restrição “admin only” (NextAuth)
+     - Rate limit em memória por IP: máx. 5 requisições por janela de 5 min
+     - Aceita `{ identifier: string }` (ex.: telegramId numérico ou @username)
+     - Gera token de 6 dígitos (5 min de expiração) e salva em `Token`
+     - Tentativa de envio do código via Telegram Bot API quando `identifier` é numérico (usuário já iniciou chat com o bot)
+     - Em DEV (`NODE_ENV !== 'production'`), retorna `code` no JSON para facilitar testes
+   - Observação:
+     - Bots não conseguem iniciar conversa com usuários por @username; é necessário o usuário ter iniciado o bot antes. Por isso, o envio só é tentado quando `identifier` é um telegramId numérico válido.
+   - Arquivo alterado:
+     - ✅ `pages/api/auth/generate-token.ts`
+   - Status: ✅ **ENTREGUE**
+
 ### Próximos Passos (pendentes):
 - Adicionar campos `brlBalanceCents` e `goldAds` no modelo User (backend)
 - Implementar lógica de conversão USD↔BRL
@@ -880,3 +895,34 @@ O Next.js escolhe automaticamente uma porta livre (ex.: `http://localhost:3002`)
 - Erros no PIN: lock de 5 segundos antes de nova tentativa
 
 ---
+
+## 2025-11-04 (Sessão: segurança tokens + documentação)
+
+ Implementado fluxo correto e seguro de tokens (sem simulação e sem expor código):
+  - `models/Token.ts`: adicionados campos `identifier`, `requestedIp`, `usedAt` (auditoria e vínculo).
+  - `pages/api/auth/generate-token.ts`:
+    - Vínculo obrigatório do token a um usuário existente (busca por `telegramId` numérico ou `@username`).
+    - Removida exposição do código no response e nos logs (logs usam `maskedCode`).
+    - Envio do token EXCLUSIVAMENTE via Bot API (é necessário ter iniciado o bot). Se falhar, retorna 400 sem vazar o código.
+    - Rate limit mantido por IP.
+  - `pages/api/auth/verify-token.ts`:
+    - Removido “guest”. Agora a sessão é criada para o `userId` vinculado ao token.
+    - Marca `usedAt` e mascara código nos logs.
+
+ Guia atualizado para refletir o comportamento real e seguro:
+  - `docs/guia-acesso-telegram.md` (Seção 7): exige usuário existente, não retorna código, orienta iniciar o bot se falhar.
+
+ Quality gates desta sessão:
+ - Build: PENDENTE rodar (alterações de código aplicadas)
+ - Lint/Typecheck: PENDENTE
+ - Testes: PENDENTE
+
+Quality gates desta sessão:
+ Persistir `username → chat_id` automaticamente na primeira abertura do WebApp (já ocorre via `/api/auth/telegram`; garantir consistência).
+ Rodar build e teste rápido de ponta-a-ponta do fluxo de token (gerar → receber no Telegram → verificar) e registrar resultados.
+ Configurar envs de produção na Vercel e concluir criação/configuração do bot no BotFather.
+
+Próximas ações imediatas (confirmadas):
+- Implementar associação correta do usuário em `/api/auth/verify-token` usando o `identifier` do token.
+- Persistir `username → chat_id` na primeira abertura do WebApp para permitir envio do token por `@username` no futuro.
+- Configurar envs de produção na Vercel e concluir criação/configuração do bot no BotFather.
