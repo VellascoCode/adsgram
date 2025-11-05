@@ -928,9 +928,15 @@ Próximas ações imediatas (confirmadas):
 
 ## 2025-11-05 (Fix: Vercel build config)
 
-- **Problema**: Vercel build falhou com "No Output Directory named 'public' found" após compilação bem-sucedida do Next.js.
-- **Causa**: Vercel esperava auto-detectar configuração do Next.js, mas falhou.
-- **Solução**: Criado `vercel.json` explicitamente configurando:
-  - `buildCommand: "npm run build"`
-  - `outputDirectory: ".next"`
-- Quality gates: Build local passou; aguardando redeploy no Vercel para validar.
+- **Problema**: Vercel build falhou com "No Output Directory named 'public' found" (tratou o app como estático) e retornou 404.
+- **Solução**: Ajustado `vercel.json` para usar o builder oficial do Next.js:
+  ```json
+  {
+    "version": 2,
+    "builds": [
+      { "src": "next.config.js", "use": "@vercel/next" }
+    ]
+  }
+  ```
+- Resultado esperado: Vercel reconhece Next.js (SSR) e não exige pasta `public`.
+- Status: Aguardando novo deploy no Vercel para confirmar 200 em `/`.
