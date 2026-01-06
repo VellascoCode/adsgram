@@ -8,6 +8,8 @@ import { User } from '@/models/User'
  * Cria (se necessário) e loga um usuário pelo telegramId fornecido.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Nunca permitir em produção (Vercel), pois cria sessão arbitrária.
+  if (process.env.NODE_ENV === 'production') return res.status(403).send('Forbidden')
   if (req.method !== 'POST') return res.status(405).send('Método não permitido')
   const { telegramId } = req.body || {}
   const tid = String(telegramId ?? '0')

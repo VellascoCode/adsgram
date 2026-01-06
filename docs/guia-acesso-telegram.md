@@ -198,6 +198,66 @@ Admin:
 Token (quando liberado ao público):
 - [ ] `generate-token` com rate limit e logs
 - [ ] Token enviado via Bot API ao usuário
+
+---
+
+## 10) Roteiro rápido (primeiros testes + “pontos por view”)
+
+Objetivo: subir na Vercel e validar em poucos minutos:
+1) login/cadastro via Telegram WebApp
+2) 1 anúncio aparecendo no Dashboard
+3) ganhar saldo ao “ver” (crédito via `/api/ads/view`)
+
+### Passo 0 — Preparar um banco “de teste”
+
+Recomendado: usar um Mongo separado (ex.: `adsgram-dev`) para não sujar o banco final.
+
+### Passo 1 — Seed de 1 anúncio + 1 tarefa (via DEV, usando o MESMO Mongo que você vai usar na Vercel)
+
+Como os endpoints de seed são bloqueados quando `NODE_ENV=production` (Vercel), o jeito mais simples é rodar o seed local apontando para o Mongo que a Vercel vai usar.
+
+1. Crie/edite `.env.local` com a `DATABASE_URL` do Mongo (Atlas) e seus secrets (exemplo na seção 2).
+2. Rodar local:
+   - `npm run dev`
+3. Em outro terminal, disparar o seed (cria apenas se não existir nada):
+   - `curl -X POST http://localhost:3000/api/dev/seed`
+
+Opcional (seed grande para testar painel admin com bastante dados; use com cuidado):
+   - `curl -X POST http://localhost:3000/api/dev/seed-advanced`
+
+Dica DEV: existe a página `/indexlocal` e o endpoint `POST /api/auth/dev-login` para facilitar testes locais sem Telegram. Eles não devem ser usados em produção.
+
+### Passo 2 — Deploy na Vercel
+
+1. Conectar o repositório e configurar as env vars (seção 2).
+2. Redeploy (para garantir que as env vars entraram).
+3. Validar:
+   - `GET /api/me` sem sessão → 401
+   - abrir `https://SEU_DOMINIO/` → tela com 3 opções de acesso
+
+### Passo 3 — BotFather (Telegram) + WebApp
+
+1. Criar o bot e pegar `TELEGRAM_BOT_TOKEN`
+2. Configurar `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` (sem `@`)
+3. BotFather → Bot Settings → Menu Button → Web App → URL: `https://SEU_DOMINIO/`
+4. Testar deep link:
+   - `https://t.me/SEU_BOT_USERNAME?startapp=app`
+
+### Passo 4 — Teste “primeiros pontos”
+
+1. Abrir o deep link dentro do Telegram (Passo 3) e autenticar (WebApp).
+2. Dashboard deve listar ao menos 1 anúncio (vindo do seed).
+3. Clicar em “Ver” no anúncio:
+   - o app chama `POST /api/ads/view`
+   - o saldo em `GET /api/me` deve aumentar em `rewardCents`
+
+### Passo 5 — (Opcional) Token login fora do Telegram
+
+Pré‑requisito: o usuário precisa existir no banco (abrir WebApp ao menos uma vez) e ter iniciado conversa com o bot.
+
+1. No chat do bot: apertar “Start”
+2. Fora do Telegram (browser normal): pedir token na home
+3. Digitar os 6 dígitos e entrar
 - [ ] `verify-token` autentica e cria sessão do usuário correto
 
 ---
